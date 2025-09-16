@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { apiClient, ContactFormData, ApiResponse } from '@/lib/api';
+import { notifyLead, utmFromLocation } from '@/lib/notifyLead';
 
 export interface ContactFormProps extends React.HTMLAttributes<HTMLFormElement> {
   onSuccess?: (response: ApiResponse) => void;
@@ -49,6 +50,23 @@ export const ContactForm: React.FC<ContactFormProps> = ({
       const response = await apiClient.submitContactForm(formData);
       
       if (response.success) {
+        // Fire-and-forget Slack notification via centralized proxy
+        try {
+          const page_url = typeof window !== 'undefined' ? window.location.href : '';
+          const payload = {
+            name: formData.name,
+            email: formData.email,
+            company: undefined,
+            subject: formData.subject,
+            message: formData.message,
+            business_type: formData.businessType || '',
+            page_url,
+            ...utmFromLocation(),
+          };
+          notifyLead('contact', payload);
+        } catch (e) {
+          console.warn('notifyLead skipped', e);
+        }
         setSuccessMessage(response.message || 'Thank you for contacting us! We\'ll get back to you soon.');
         setFormData({
           name: '',
